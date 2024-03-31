@@ -1,0 +1,14 @@
+{
+"name": "tiles",
+"description": "tiles",
+"version": "2",
+"minzoom": "4",
+"maxzoom": "12",
+"center": "-93.208008,30.107111,12",
+"bounds": "-96.227585,27.500262,-89.695558,32.919414",
+"type": "overlay",
+"format": "pbf",
+"generator": "tippecanoe v1.36.0",
+"generator_options": "tippecanoe -e tiles --no-feature-limit --no-tile-size-limit --no-tile-compression '--maximum-zoom=12' '--minimum-zoom=4' out.json --force -P",
+"json": "{\"vector_layers\": [ { \"id\": \"out\", \"description\": \"\", \"minzoom\": 4, \"maxzoom\": 12, \"fields\": {\"value\": \"Number\"} } ],\"tilestats\": {\"layerCount\": 1,\"layers\": [{\"layer\": \"out\",\"count\": 349433,\"geometry\": \"Polygon\",\"attributeCount\": 1,\"attributes\": [{\"attribute\": \"value\",\"count\": 109,\"type\": \"number\",\"values\": [10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15,15.5,16,16.5,17,17.5,18,18.5,19,19.5,2,2.5,20,20.5,21,21.5,22,22.5,23,23.5,24,24.5,25,25.5,26,26.5,27,27.5,28,28.5,29,29.5,3,3.5,30,30.5,31,31.5,32,32.5,33,33.5,34,34.5,35,35.5,36,36.5,37,37.5,38,38.5,39,39.5,4,4.5,40,40.5,41,41.5,42,42.5,43,43.5,44,44.5,45,45.5,46,46.5,47,47.5,48,48.5,49,49.5,5,5.5,50,50.5,51,51.5,52,52.5,53,53.5,54,54.5,55,55.5],\"min\": 2,\"max\": 56}]}]}}"
+}

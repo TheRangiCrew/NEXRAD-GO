@@ -1,0 +1,5 @@
+github.com/TheRangiCrew/NEXRAD-GO v0.0.0-20240419004035-e7c3ec86c77a/go.mod h1:z/C9tpP+rGH6JRflz3V+1Th4cpbqSAhIS4YkZ5JsvFU=
+github.com/TheRangiCrew/NEXRAD-GO/level2 v0.0.0-20240419004035-e7c3ec86c77a h1:MORNOFt1ErxnqFwdvBA83KU9Vb1vi2aNBBhiP0Tti4w=
+github.com/TheRangiCrew/NEXRAD-GO/level2 v0.0.0-20240419004035-e7c3ec86c77a/go.mod h1:Ivc+LMVGFRDx8/mmDU/Xk/CpXAN3jUy3ys3PMkMW9Ng=
+github.com/paulmach/go.geojson v1.5.0 h1:7mhpMK89SQdHFcEGomT7/LuJhwhEgfmpWYVlVmLEdQw=
+github.com/paulmach/go.geojson v1.5.0/go.mod h1:DgdUy2rRVDDVgKqrjMe2vZAHMfhDTrjVKt3LmHIXGbU=

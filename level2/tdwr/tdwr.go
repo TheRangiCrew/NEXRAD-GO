@@ -1,4 +1,4 @@
-package nexrad
+package tdwr
 
 import (
 	"encoding/binary"
@@ -13,27 +13,27 @@ type ElevationMessages struct {
 	M31 []*level2.Message31
 }
 
-type Nexrad struct {
+type TDWR struct {
 	IsNexradArchive bool
 	ICAO            string
 	VolumeHeader    level2.VolumeHeader
 	ElevationScans  map[int]*ElevationMessages
 }
 
-func ParseNexrad(file io.ReadSeeker) *Nexrad {
+func ParseNexrad(file io.ReadSeeker) *TDWR {
 	// Make sure we are starting at the beginning of the file
 	file.Seek(0, io.SeekStart)
 
 	header := level2.GetVolumeHeader(file)
 
-	nexrad := Nexrad{
+	tdwr := TDWR{
 		VolumeHeader:    *header,
-		IsNexradArchive: string(header.Tape[:]) == "AR2V0006.",
+		IsNexradArchive: string(header.Tape[:]) == "AR2V0008.",
 		ElevationScans:  make(map[int]*ElevationMessages),
 	}
 
-	if nexrad.IsNexradArchive {
-		nexrad.ICAO = string(nexrad.VolumeHeader.ICAO[:])
+	if tdwr.IsNexradArchive {
+		tdwr.ICAO = string(tdwr.VolumeHeader.ICAO[:])
 	} else {
 		file.Seek(0, io.SeekStart)
 	}
@@ -84,20 +84,20 @@ func ParseNexrad(file io.ReadSeeker) *Nexrad {
 				fmt.Println(m5.Header.PatterNumber)
 			case 31:
 				m31 := level2.ParseMessage31(ldm.Data)
-				if nexrad.ICAO == "" {
-					nexrad.ICAO = string(m31.Header.ICAO[:])
+				if tdwr.ICAO == "" {
+					tdwr.ICAO = string(m31.Header.ICAO[:])
 				}
-				if nexrad.ElevationScans[int(m31.Header.ElevationNumber)] == nil {
-					nexrad.ElevationScans[int(m31.Header.ElevationNumber)] = &ElevationMessages{
+				if tdwr.ElevationScans[int(m31.Header.ElevationNumber)] == nil {
+					tdwr.ElevationScans[int(m31.Header.ElevationNumber)] = &ElevationMessages{
 						M31: []*level2.Message31{},
 					}
 				}
-				nexrad.ElevationScans[int(m31.Header.ElevationNumber)].M31 = append(nexrad.ElevationScans[int(m31.Header.ElevationNumber)].M31, &m31)
+				tdwr.ElevationScans[int(m31.Header.ElevationNumber)].M31 = append(tdwr.ElevationScans[int(m31.Header.ElevationNumber)].M31, &m31)
 			default:
 				ldm.Data.Seek(level2.MessageBodySize, io.SeekCurrent)
 			}
 		}
 	}
 
-	return &nexrad
+	return &tdwr
 }

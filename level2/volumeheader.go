@@ -1,4 +1,4 @@
-package l2
+package level2
 
 import (
 	"encoding/binary"
@@ -15,7 +15,7 @@ type VolumeHeader struct {
 }
 
 func (v *VolumeHeader) Date() time.Time {
-	return julianDateToTime(v.JulianDate, v.Time)
+	return JulianDateToTime(v.JulianDate, v.Time)
 }
 
 func GetVolumeHeader(file io.ReadSeeker) *VolumeHeader {

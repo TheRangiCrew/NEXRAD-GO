@@ -1,4 +1,4 @@
-package l2
+package level2
 
 import (
 	"bytes"
@@ -28,8 +28,28 @@ func Decompress(file io.ReadSeeker, size int) *bytes.Reader {
 	return bytes.NewReader(extractedData.Bytes())
 }
 
-func julianDateToTime(d uint32, t uint32) time.Time {
+func JulianDateToTime(d uint32, t uint32) time.Time {
 	return time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC).
 		Add(time.Duration(d) * time.Hour * 24).
 		Add(time.Duration(t) * time.Millisecond)
+}
+
+func IsNexradArchive(file io.ReadSeeker) bool {
+	file.Seek(0, io.SeekStart)
+
+	header := GetVolumeHeader(file)
+
+	file.Seek(0, io.SeekStart)
+
+	return string(header.Tape[:]) == "AR2V0006."
+}
+
+func IsTDWRArchive(file io.ReadSeeker) bool {
+	file.Seek(0, io.SeekStart)
+
+	header := GetVolumeHeader(file)
+
+	file.Seek(0, io.SeekStart)
+
+	return string(header.Tape[:]) == "AR2V0008."
 }

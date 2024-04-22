@@ -1,4 +1,4 @@
-package level2
+package tdwr
 
 import (
 	"encoding/binary"
@@ -23,10 +23,8 @@ type VolumeData struct {
 	VertTXPower         float32
 	DiffReflectivity    float32
 	DiffPhase           float32
-	VCP                 uint16
+	VCPNumber           uint16
 	ProcessingStatus    uint16
-	ZDRMean             uint16
-	Spare               [6]byte
 }
 
 type ElevationData struct {
@@ -38,16 +36,10 @@ type ElevationData struct {
 }
 
 type RadialData struct {
-	DataBlockType    [1]byte
-	DataName         [3]byte
-	LRTUP            uint16
-	Range            uint16
-	NoiseHoriz       float32
-	NoiseVert        float32
-	Velocity         uint16
-	RadialFlags      uint16
-	CalibrationHoriz float32
-	CalibrationVert  float32
+	DataBlockType [1]byte
+	DataName      [3]byte
+	LRTUP         uint16
+	Range         uint16
 }
 
 type Message31Header struct {
@@ -114,13 +106,16 @@ func (m31 *Message31) ToGEOJson() *geojson.FeatureCollection {
 }
 
 func ParseMessage31(file io.ReadSeeker) Message31 {
-	header := Message31Header{}
 
 	startPos, _ := file.Seek(0, io.SeekCurrent)
 
+	header := Message31Header{}
 	if err := binary.Read(file, binary.BigEndian, &header); err != nil {
 		panic(err)
 	}
+
+	curr, _ := file.Seek(0, io.SeekCurrent)
+	fmt.Printf("After header: %d\n", curr)
 
 	message31 := Message31{
 		Header:     header,
@@ -131,8 +126,15 @@ func ParseMessage31(file io.ReadSeeker) Message31 {
 	if err := binary.Read(file, binary.BigEndian, blockPointers); err != nil {
 		panic(err.Error())
 	}
+	fmt.Println(blockPointers)
+
+	curr, _ = file.Seek(0, io.SeekCurrent)
+	fmt.Printf("After pointers: %d\n", curr)
 
 	for _, pointer := range blockPointers {
+		if pointer == 0 {
+			continue
+		}
 		file.Seek(startPos+int64(pointer)+1, io.SeekStart)
 
 		n := make([]byte, 3)
@@ -143,37 +145,41 @@ func ParseMessage31(file io.ReadSeeker) Message31 {
 		file.Seek(-4, io.SeekCurrent)
 
 		name := string(n)
-
+		curr, _ := file.Seek(0, io.SeekCurrent)
+		fmt.Printf("Before %s %d\n", name, curr)
 		switch name {
 		case "VOL":
 			binary.Read(file, binary.BigEndian, &message31.VolumeData)
+			fmt.Println(message31.VolumeData.LRTUP)
 		case "ELV":
 			binary.Read(file, binary.BigEndian, &message31.ElevationData)
+			fmt.Println(message31.ElevationData.LRTUP)
+
 		case "RAD":
 			binary.Read(file, binary.BigEndian, &message31.RadialData)
+			// fmt.Println(string(message31.RadialData.:]))
+
 		case "REF":
 			fallthrough
 		case "VEL":
 			fallthrough
-		case "CFP":
-			fallthrough
 		case "SW ":
-			fallthrough
-		case "ZDR":
-			fallthrough
-		case "PHI":
-			fallthrough
-		case "RHO":
+
 			m := GenericMoment{}
 			binary.Read(file, binary.BigEndian, &m)
 
-			ldm := m.NumberGates * uint16(m.DataWordSize) / 8
+			ldm := (m.NumberGates * uint16(m.DataWordSize)) / 8
+			fmt.Println(m.DataWordSize)
+
+			fmt.Println(m.NumberGates)
 			data := make([]byte, ldm)
 			binary.Read(file, binary.BigEndian, data)
 
 			converted := []float32{}
-			for _, n := range data {
-				converted = append(converted, (float32(n)-m.Offset)/m.Scale)
+			if m.Scale != 0 {
+				for _, n := range data {
+					converted = append(converted, (float32(n)-float32(m.Offset))/float32(m.Scale))
+				}
 			}
 
 			d := Moment{
@@ -183,7 +189,11 @@ func ParseMessage31(file io.ReadSeeker) Message31 {
 
 			message31.MomentData[name] = d
 		}
+		curr, _ = file.Seek(0, io.SeekCurrent)
+		fmt.Printf("After %s %d\n", name, curr)
 	}
+
+	fmt.Printf("Range %d\n", message31.RadialData.LRTUP)
 
 	return message31
 }

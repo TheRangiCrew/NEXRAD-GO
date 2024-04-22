@@ -10,93 +10,104 @@ import (
 
 type ElevationMessages struct {
 	M5  []*Message5
-	M31 []*level2.Message31
+	M31 []*Message31
 }
 
 type TDWR struct {
-	IsNexradArchive bool
-	ICAO            string
-	VolumeHeader    level2.VolumeHeader
-	ElevationScans  map[int]*ElevationMessages
+	IsArchive      bool
+	ICAO           string
+	VolumeHeader   level2.VolumeHeader
+	VCP            Message5
+	ElevationScans map[int]*ElevationMessages
 }
 
-func ParseNexrad(file io.ReadSeeker) *TDWR {
-	// Make sure we are starting at the beginning of the file
+func ParseTDWR(file io.ReadSeeker) *TDWR {
+	// Start at the beginning of the file
 	file.Seek(0, io.SeekStart)
 
+	// Parse the Volume Header
 	header := level2.GetVolumeHeader(file)
 
 	tdwr := TDWR{
-		VolumeHeader:    *header,
-		IsNexradArchive: string(header.Tape[:]) == "AR2V0008.",
-		ElevationScans:  make(map[int]*ElevationMessages),
+		VolumeHeader:   *header,
+		IsArchive:      string(header.Tape[:]) == "AR2V0008.",
+		ElevationScans: make(map[int]*ElevationMessages),
 	}
 
-	if tdwr.IsNexradArchive {
+	// If the file is an archive file then the ICAO is provided for us already
+	if tdwr.IsArchive {
 		tdwr.ICAO = string(tdwr.VolumeHeader.ICAO[:])
 	} else {
 		file.Seek(0, io.SeekStart)
 	}
 
-	fmt.Println(string(header.Tape[:]))
-
 	fmt.Println(string(header.ICAO[:]))
+
+	i := 0
 
 	for {
 
-		ldm := level2.LDM{}
-		if err := binary.Read(file, binary.BigEndian, &ldm.Size); err != nil {
+		// Create the LDM Record
+		ldmRecord := level2.LDM{}
+		if err := binary.Read(file, binary.BigEndian, &ldmRecord.Size); err != nil {
 			if err != io.EOF {
 				panic(err)
 			}
 			break
 		}
 
-		if ldm.Size < 0 {
-			ldm.Size = -ldm.Size
+		if ldmRecord.Size < 0 {
+			ldmRecord.Size = -ldmRecord.Size
 		}
 
+		// Decompress the LDM Record
 		if level2.IsCompressed(file) {
-			ldm.Data = level2.Decompress(file, int(ldm.Size))
+			ldmRecord.Data = level2.Decompress(file, int(ldmRecord.Size))
 		} else {
-			ldm.Data = file
+			ldmRecord.Data = file
 		}
+
+		curr, _ := ldmRecord.Data.Seek(0, io.SeekStart)
+		fmt.Printf("\nStarting position: %d\n", curr)
 
 		for {
-			ldm.Data.Seek(level2.CTMHeaderSize, io.SeekCurrent)
+			curr, _ := ldmRecord.Data.Seek(level2.CTMHeaderSize, io.SeekCurrent)
+			fmt.Printf("Current position: %d\n", curr)
 
 			messageHeader := level2.MessageHeader{}
-			if err := binary.Read(ldm.Data, binary.BigEndian, &messageHeader); err != nil {
+			if err := binary.Read(ldmRecord.Data, binary.BigEndian, &messageHeader); err != nil {
 				if err != io.EOF {
 					panic(err)
 				}
 				break
 			}
 
-			fmt.Println(messageHeader.MessageType)
+			curr, _ = ldmRecord.Data.Seek(0, io.SeekCurrent)
+			fmt.Printf("After header: %d\n", curr)
 
-			// Double the size since the value of size is in halfwords
-			messageHeader.Size *= 2
+			fmt.Printf("Message: %d\n", messageHeader.MessageType)
 
 			switch messageHeader.MessageType {
 			case 5:
-				m5 := ParseMessage5(ldm.Data)
-				fmt.Println(m5.Header.PatterNumber)
+				tdwr.VCP = ParseMessage5(ldmRecord.Data)
+				ldmRecord.Data.Seek(int64(level2.DefaultMessageSize-(messageHeader.Size*2)-level2.CTMHeaderSize), io.SeekCurrent)
 			case 31:
-				m31 := level2.ParseMessage31(ldm.Data)
-				if tdwr.ICAO == "" {
-					tdwr.ICAO = string(m31.Header.ICAO[:])
-				}
-				if tdwr.ElevationScans[int(m31.Header.ElevationNumber)] == nil {
-					tdwr.ElevationScans[int(m31.Header.ElevationNumber)] = &ElevationMessages{
-						M31: []*level2.Message31{},
-					}
-				}
-				tdwr.ElevationScans[int(m31.Header.ElevationNumber)].M31 = append(tdwr.ElevationScans[int(m31.Header.ElevationNumber)].M31, &m31)
+				fmt.Printf("Message size: %d\n", messageHeader.Size*2)
+				ParseMessage31(ldmRecord.Data)
+				curr, _ = ldmRecord.Data.Seek(0, io.SeekCurrent)
+				fmt.Printf("After message: %d\n", curr)
+				// break
 			default:
-				ldm.Data.Seek(level2.MessageBodySize, io.SeekCurrent)
+				ldmRecord.Data.Seek(int64(level2.MessageBodySize), io.SeekCurrent)
 			}
 		}
+
+		i++
+
+		// if i == 2 {
+		// 	break
+		// }
+
 	}
 
 	return &tdwr

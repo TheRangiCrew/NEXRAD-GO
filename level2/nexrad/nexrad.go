@@ -9,8 +9,7 @@ import (
 )
 
 type ElevationMessages struct {
-	// M5  []*Message5
-	// M31 []*Message31
+	M31 []*Message31
 }
 
 type Nexrad struct {
@@ -21,22 +20,22 @@ type Nexrad struct {
 	ElevationScans map[int]*ElevationMessages
 }
 
-func ParseNexrad(file io.ReadSeeker) {
+func ParseNexrad(file io.ReadSeeker) *Nexrad {
 	// Start at the beginning of the file
 	file.Seek(0, io.SeekStart)
 
 	// Parse the Volume Header
 	header := level2.GetVolumeHeader(file)
 
-	nexrad := Nexrad{
+	radar := Nexrad{
 		VolumeHeader:   *header,
 		IsArchive:      string(header.Tape[:]) == "AR2V0006.",
 		ElevationScans: make(map[int]*ElevationMessages),
 	}
 
 	// If the file is an archive file then the ICAO is provided for us already
-	if nexrad.IsArchive {
-		nexrad.ICAO = string(nexrad.VolumeHeader.ICAO[:])
+	if radar.IsArchive {
+		radar.ICAO = string(radar.VolumeHeader.ICAO[:])
 	} else {
 		file.Seek(0, io.SeekStart)
 	}
@@ -65,12 +64,8 @@ func ParseNexrad(file io.ReadSeeker) {
 			ldmRecord.Data = file
 		}
 
-		curr, _ := ldmRecord.Data.Seek(0, io.SeekStart)
-		fmt.Printf("\nStarting position: %d\n", curr)
-
 		for {
-			curr, _ := ldmRecord.Data.Seek(level2.CTMHeaderSize, io.SeekCurrent)
-			fmt.Printf("Current position: %d\n", curr)
+			ldmRecord.Data.Seek(level2.CTMHeaderSize, io.SeekCurrent)
 
 			messageHeader := level2.MessageHeader{}
 			if err := binary.Read(ldmRecord.Data, binary.BigEndian, &messageHeader); err != nil {
@@ -80,21 +75,24 @@ func ParseNexrad(file io.ReadSeeker) {
 				break
 			}
 
-			curr, _ = ldmRecord.Data.Seek(0, io.SeekCurrent)
-			fmt.Printf("After header: %d\n", curr)
-
-			fmt.Printf("Message: %d\n", messageHeader.MessageType)
-
 			switch messageHeader.MessageType {
 			case 5:
-				nexrad.VCP = ParseMessage5(ldmRecord.Data)
+				radar.VCP = ParseMessage5(ldmRecord.Data)
 				ldmRecord.Data.Seek(int64(level2.DefaultMessageSize-(messageHeader.Size*2)-level2.CTMHeaderSize), io.SeekCurrent)
 			case 31:
-				ParseMessage31(ldmRecord.Data)
+				m31 := ParseMessage31(ldmRecord.Data)
+				if radar.ElevationScans[int(m31.Header.ElevationNumber)] == nil {
+					radar.ElevationScans[int(m31.Header.ElevationNumber)] = &ElevationMessages{
+						M31: []*Message31{},
+					}
+				}
+				radar.ElevationScans[int(m31.Header.ElevationNumber)].M31 = append(radar.ElevationScans[int(m31.Header.ElevationNumber)].M31, &m31)
 			default:
 				ldmRecord.Data.Seek(int64(level2.MessageBodySize), io.SeekCurrent)
 			}
 		}
 
 	}
+
+	return &radar
 }

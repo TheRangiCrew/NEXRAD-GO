@@ -3,19 +3,26 @@ package main
 import (
 	"os"
 
-	"github.com/TheRangiCrew/nexrad-go/l2"
+	"github.com/TheRangiCrew/NEXRAD-GO/server"
 )
 
 func main() {
-	filename := "KVAX20240316_001243_V06"
+	filename := "20240401-214657-014-I"
+	// filename := "KLCH20240123_003612_V06"
+	// filename := "TATL20240421_001129_V08"
 
 	file, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
 
-	radar := l2.ParseL2Radar(file)
+	// tdwr.ParseTDWR(file)
+	// nexrad.ParseNexrad(file)
 
-	radar.ToJSON()
-
+	chunkData, err := server.FilenameToChunkData(filename)
+	if err != nil {
+		panic(err)
+	}
+	server.ParseNewChunk(file, *chunkData)
+	// server.StartServer()
 }

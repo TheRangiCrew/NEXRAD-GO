@@ -100,7 +100,10 @@ func ParseNewChunk(data io.ReadSeeker, chunkData ChunkFileData) error {
 
 	fmt.Printf("Parsed new chunk %s %d %s %s\n", chunkData.Site, chunkData.Number, chunkData.ChunkType, chunkData.InitTime)
 
-	l2Radar := nexrad.ParseNexrad(data)
+	l2Radar, err := nexrad.ParseNexrad(data)
+	if err != nil {
+		return err
+	}
 
 	scans := NexradToScans(l2Radar)
 
@@ -144,6 +147,11 @@ func StartServer() {
 	sqsClient := sqs.NewFromConfig(sdkConfig)
 
 	for {
+		if SurrealInit() != nil {
+			log.Printf("Failed to connect to DB: %s\nTrying again in 30 seconds\n\n", err)
+			time.Sleep(30 * time.Second)
+			continue
+		}
 		messagesRaw, err := GetMessages(*sqsClient, 10, 20)
 		if err != nil {
 			log.Fatal(err)

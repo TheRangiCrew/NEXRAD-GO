@@ -24,7 +24,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/paulmach/go.geojson v1.5.0 // indirect
+	github.com/surrealdb/surrealdb.go v0.2.1 // indirect
 )
 
 require (

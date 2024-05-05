@@ -2,7 +2,6 @@ package nexrad2
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
@@ -54,7 +53,7 @@ type Message5 struct {
 	ElevationAngles []ElevationCut
 }
 
-func ParseMessage5(file io.ReadSeeker) Message5 {
+func ParseMessage5(file io.ReadSeeker) (*Message5, error) {
 	header := Message5Header{}
 	binary.Read(file, binary.BigEndian, &header)
 
@@ -67,7 +66,7 @@ func ParseMessage5(file io.ReadSeeker) Message5 {
 		elevationCut := ElevationCut{}
 		if err := binary.Read(file, binary.BigEndian, &elevationCut); err != nil {
 			if err != io.EOF {
-				panic(err)
+				return nil, err
 			}
 			break
 		}
@@ -75,18 +74,18 @@ func ParseMessage5(file io.ReadSeeker) Message5 {
 		m5.ElevationAngles = append(m5.ElevationAngles, elevationCut)
 	}
 
-	return m5
+	return &m5, nil
 }
 
 type VCPSupplementalData struct {
 }
 
 func (message Message5) GetVCPBits() {
-	fmt.Println(message.Header.VCPSupplementalData&1 == 1)
-	fmt.Println(message.Header.VCPSupplementalData & 14)
-	fmt.Println(message.Header.VCPSupplementalData&16 != 0)
-	fmt.Println((uint8)(message.Header.VCPSupplementalData & 224))
-	fmt.Println("VCP")
+	// fmt.Println(message.Header.VCPSupplementalData&1 == 1)
+	// fmt.Println(message.Header.VCPSupplementalData & 14)
+	// fmt.Println(message.Header.VCPSupplementalData&16 != 0)
+	// fmt.Println((uint8)(message.Header.VCPSupplementalData & 224))
+	// fmt.Println("VCP")
 	// fmt.Println(message.Header.VCPSupplementalData & 1792)
 	// fmt.Println(message.Header.VCPSupplementalData & 2048)
 	// fmt.Println(message.Header.VCPSupplementalData & 4096)

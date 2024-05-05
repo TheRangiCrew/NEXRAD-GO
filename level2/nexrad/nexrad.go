@@ -16,16 +16,19 @@ type Nexrad struct {
 	IsArchive      bool
 	ICAO           string
 	VolumeHeader   level2.VolumeHeader
-	VCP            Message5
+	VCP            *Message5
 	ElevationScans map[int]*ElevationMessages
 }
 
-func ParseNexrad(file io.ReadSeeker) *Nexrad {
+func ParseNexrad(file io.ReadSeeker) (*Nexrad, error) {
 	// Start at the beginning of the file
 	file.Seek(0, io.SeekStart)
 
 	// Parse the Volume Header
-	header := level2.GetVolumeHeader(file)
+	header, err := level2.GetVolumeHeader(file)
+	if err != nil {
+		return nil, err
+	}
 
 	radar := Nexrad{
 		VolumeHeader:   *header,
@@ -40,7 +43,7 @@ func ParseNexrad(file io.ReadSeeker) *Nexrad {
 		file.Seek(0, io.SeekStart)
 	}
 
-	fmt.Println(string(header.ICAO[:]))
+	//fmt.Println(string(header.ICAO[:]))
 
 	for {
 
@@ -48,7 +51,7 @@ func ParseNexrad(file io.ReadSeeker) *Nexrad {
 		ldmRecord := level2.LDM{}
 		if err := binary.Read(file, binary.BigEndian, &ldmRecord.Size); err != nil {
 			if err != io.EOF {
-				panic(err)
+				return nil, fmt.Errorf("reached EOF when reading LDM record")
 			}
 			break
 		}
@@ -70,23 +73,29 @@ func ParseNexrad(file io.ReadSeeker) *Nexrad {
 			messageHeader := level2.MessageHeader{}
 			if err := binary.Read(ldmRecord.Data, binary.BigEndian, &messageHeader); err != nil {
 				if err != io.EOF {
-					panic(err)
+					return nil, err
 				}
 				break
 			}
 
 			switch messageHeader.MessageType {
 			case 5:
-				radar.VCP = ParseMessage5(ldmRecord.Data)
+				radar.VCP, err = ParseMessage5(ldmRecord.Data)
+				if err != nil {
+					return nil, err
+				}
 				ldmRecord.Data.Seek(int64(level2.DefaultMessageSize-(messageHeader.Size*2)-level2.CTMHeaderSize), io.SeekCurrent)
 			case 31:
-				m31 := ParseMessage31(ldmRecord.Data)
+				m31, err := ParseMessage31(ldmRecord.Data)
+				if err != nil {
+					return nil, err
+				}
 				if radar.ElevationScans[int(m31.Header.ElevationNumber)] == nil {
 					radar.ElevationScans[int(m31.Header.ElevationNumber)] = &ElevationMessages{
 						M31: []*Message31{},
 					}
 				}
-				radar.ElevationScans[int(m31.Header.ElevationNumber)].M31 = append(radar.ElevationScans[int(m31.Header.ElevationNumber)].M31, &m31)
+				radar.ElevationScans[int(m31.Header.ElevationNumber)].M31 = append(radar.ElevationScans[int(m31.Header.ElevationNumber)].M31, m31)
 			default:
 				ldmRecord.Data.Seek(int64(level2.MessageBodySize), io.SeekCurrent)
 			}
@@ -94,5 +103,5 @@ func ParseNexrad(file io.ReadSeeker) *Nexrad {
 
 	}
 
-	return &radar
+	return &radar, nil
 }

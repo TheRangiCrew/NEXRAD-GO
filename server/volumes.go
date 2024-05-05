@@ -52,7 +52,7 @@ func AddToVolume(scans []*Scan, chunkData ChunkFileData) {
 				InitTime: chunkData.InitTime,
 				Scans:    []*Scan{s},
 			})
-			s.
+
 		} else {
 			other := FindScanElevationNumber(s, volume.Scans)
 			if other == nil {

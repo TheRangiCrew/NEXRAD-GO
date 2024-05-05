@@ -2,7 +2,6 @@ package tdwr
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
@@ -82,11 +81,11 @@ type VCPSupplementalData struct {
 }
 
 func (message Message5) GetVCPBits() {
-	fmt.Println(message.Header.VCPSupplementalData&1 == 1)
-	fmt.Println(message.Header.VCPSupplementalData & 14)
-	fmt.Println(message.Header.VCPSupplementalData&16 != 0)
-	fmt.Println((uint8)(message.Header.VCPSupplementalData & 224))
-	fmt.Println("VCP")
+	// fmt.Println(message.Header.VCPSupplementalData&1 == 1)
+	// fmt.Println(message.Header.VCPSupplementalData & 14)
+	// fmt.Println(message.Header.VCPSupplementalData&16 != 0)
+	// fmt.Println((uint8)(message.Header.VCPSupplementalData & 224))
+	// fmt.Println("VCP")
 	// fmt.Println(message.Header.VCPSupplementalData & 1792)
 	// fmt.Println(message.Header.VCPSupplementalData & 2048)
 	// fmt.Println(message.Header.VCPSupplementalData & 4096)

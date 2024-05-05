@@ -19,7 +19,6 @@ func IsCompressed(file io.ReadSeeker) bool {
 }
 
 func Decompress(file io.ReadSeeker, size int) *bytes.Reader {
-	// fmt.Println("Decompressing...")
 	compressedData := make([]byte, size)
 	binary.Read(file, binary.BigEndian, &compressedData)
 	bz2Reader := bzip2.NewReader(bytes.NewReader(compressedData))
@@ -34,22 +33,28 @@ func JulianDateToTime(d uint32, t uint32) time.Time {
 		Add(time.Duration(t) * time.Millisecond)
 }
 
-func IsNexradArchive(file io.ReadSeeker) bool {
+func IsNexradArchive(file io.ReadSeeker) (bool, error) {
 	file.Seek(0, io.SeekStart)
 
-	header := GetVolumeHeader(file)
+	header, err := GetVolumeHeader(file)
+	if err != nil {
+		return false, err
+	}
 
 	file.Seek(0, io.SeekStart)
 
-	return string(header.Tape[:]) == "AR2V0006."
+	return string(header.Tape[:]) == "AR2V0006.", nil
 }
 
-func IsTDWRArchive(file io.ReadSeeker) bool {
+func IsTDWRArchive(file io.ReadSeeker) (bool, error) {
 	file.Seek(0, io.SeekStart)
 
-	header := GetVolumeHeader(file)
+	header, err := GetVolumeHeader(file)
+	if err != nil {
+		return false, err
+	}
 
 	file.Seek(0, io.SeekStart)
 
-	return string(header.Tape[:]) == "AR2V0008."
+	return string(header.Tape[:]) == "AR2V0008.", nil
 }

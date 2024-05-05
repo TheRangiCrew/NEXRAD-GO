@@ -113,13 +113,13 @@ func (m31 *Message31) ToGEOJson() *geojson.FeatureCollection {
 	return nil
 }
 
-func ParseMessage31(file io.ReadSeeker) Message31 {
+func ParseMessage31(file io.ReadSeeker) (*Message31, error) {
 	header := Message31Header{}
 
 	startPos, _ := file.Seek(0, io.SeekCurrent)
 
 	if err := binary.Read(file, binary.BigEndian, &header); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	message31 := Message31{
@@ -129,7 +129,8 @@ func ParseMessage31(file io.ReadSeeker) Message31 {
 
 	blockPointers := make([]uint32, header.DataBlockCount)
 	if err := binary.Read(file, binary.BigEndian, blockPointers); err != nil {
-		panic(err.Error())
+		return nil, err
+
 	}
 
 	for _, pointer := range blockPointers {
@@ -137,7 +138,8 @@ func ParseMessage31(file io.ReadSeeker) Message31 {
 
 		n := make([]byte, 3)
 		if err := binary.Read(file, binary.BigEndian, &n); err != nil {
-			panic(err.Error())
+			return nil, err
+
 		}
 
 		file.Seek(-4, io.SeekCurrent)
@@ -185,5 +187,5 @@ func ParseMessage31(file io.ReadSeeker) Message31 {
 		}
 	}
 
-	return message31
+	return &message31, nil
 }

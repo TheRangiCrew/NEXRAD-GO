@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"sort"
 
 	nexrad "github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
@@ -69,7 +68,7 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
 				elevation.AzimuthResolution = float32(scan.Header.AzimuthResolution) / 2.0
 			}
 
-			fmt.Println(scan.Header.RadialStatus)
+			//fmt.Println(scan.Header.RadialStatus)
 
 			angleSum += scan.Header.ElevationAngle
 			n++

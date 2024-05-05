@@ -18,14 +18,14 @@ func (v *VolumeHeader) Date() time.Time {
 	return JulianDateToTime(v.JulianDate, v.Time)
 }
 
-func GetVolumeHeader(file io.ReadSeeker) *VolumeHeader {
+func GetVolumeHeader(file io.ReadSeeker) (*VolumeHeader, error) {
 	file.Seek(0, io.SeekCurrent)
 	volumeHeader := VolumeHeader{}
 
 	err := binary.Read(file, binary.BigEndian, &volumeHeader)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return &volumeHeader
+	return &volumeHeader, nil
 }

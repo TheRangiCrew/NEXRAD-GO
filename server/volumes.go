@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
@@ -18,35 +17,6 @@ type Volume struct {
 	CurrentElevation      int       `json:"current_elevation_number"`
 	CurrentElevationAngle int       `json:"current_elevation_angle"`
 	//Scans                 *[]Scan
-}
-
-var lock = &sync.Mutex{}
-
-var queue *[]Scan
-
-func Scans() *[]Scan {
-	lock.Lock()
-	defer lock.Unlock()
-
-	if queue == nil {
-		queue = &[]Scan{}
-	}
-
-	return queue
-}
-
-func RemoveScan(slice *[]Scan, scanToRemove *Scan) *[]Scan {
-	for i, scan := range *slice {
-		if &scan == scanToRemove {
-			// Swap the element to be removed with the last element
-			(*slice)[i] = (*slice)[len(*slice)-1]
-			// Truncate the slice by one element
-			*slice = (*slice)[:len(*slice)-1]
-			return slice
-		}
-	}
-	// If the scan is not found, return the original slice
-	return slice
 }
 
 func GetVolumeID(t time.Time, icao string) string {
@@ -110,12 +80,6 @@ func NewVolume(l2Radar *nexrad.Nexrad, chunkData ChunkFileData) error {
 	return nil
 }
 
-func FindVolume(icao string, initTime time.Time) *Volume {
-	//Surreal().Query()
-
-	return nil
-}
-
 func AddToVolume(l2Radar *nexrad.Nexrad, chunkData ChunkFileData) error {
 	if l2Radar.ICAO == "" {
 		return errors.New("radar data did not contain a valid ICAO")
@@ -146,14 +110,15 @@ func AddToVolume(l2Radar *nexrad.Nexrad, chunkData ChunkFileData) error {
 
 	for _, newScan := range newScans {
 		// Assign current scan if it is nil
-		currentScan := FindScanElevationNumber(newScans[0], scans)
-		if currentScan == nil {
+		var currentScan *Scan
+		scanIndex := FindScanIndex(newScan, scans)
+		if scanIndex == -1 {
 			currentScan = &newScan
 			*scans = append(*scans, *currentScan)
+			scanIndex = len(*scans) - 1
 		} else {
-			fmt.Println(len(currentScan.Gates))
-			currentScan.Gates = append(currentScan.Gates, newScan.Gates...)
-			fmt.Println(len(currentScan.Gates))
+			currentScan = &(*scans)[scanIndex]
+			*currentScan.Gates = append(*currentScan.Gates, *newScan.Gates...)
 		}
 
 		if newScan.EOE {
@@ -165,65 +130,16 @@ func AddToVolume(l2Radar *nexrad.Nexrad, chunkData ChunkFileData) error {
 
 		if (currentScan.EOE || currentScan.EOV) && volume.VCP != 0 {
 			fmt.Printf("%s on elevation %d completed\n", currentScan.ProductType, currentScan.ElevationNumber)
-			// AddSite(currentScan, *volume)
+			PushScan(currentScan, volume.InitTime)
 			fmt.Printf("Removing scan for %s\n", l2Radar.ICAO)
-			RemoveScan(scans, currentScan)
+			_, err := RemoveScan(scanIndex, scans)
+			if err != nil {
+				return err
+			}
 		}
+
+		fmt.Println(len(*scans))
 	}
 
 	return nil
 }
-
-// func ToVolume(l2Radar *nexrad.Nexrad, chunkData ChunkFileData) {
-// 	vcp := 0
-// 	if l2Radar.VCP != nil {
-// 		vcp = int(l2Radar.VCP.Header.PatternNumber)
-// 	}
-
-// 	scans := NexradToScans(l2Radar)
-
-// 	volume := FindVolume(chunkData.Site, chunkData.InitTime)
-
-// 	if volume == nil {
-// 		if chunkData.ChunkType != "S" {
-// 			return
-// 		}
-// 		// If none add it
-// 		volume = &Volume{
-// 			ICAO:     chunkData.Site,
-// 			InitTime: chunkData.InitTime,
-// 			VCP:      vcp,
-// 			Scans:    &[]Scan{},
-// 		}
-// 		*volumes = append(*volumes, *volume)
-// 		fmt.Printf("Adding volume for %s\n", volume.ICAO)
-
-// 	}
-
-// 	if l2Radar.ElevationScans[1] != nil {
-// 		volume.Elevation = int(l2Radar.ElevationScans[1].M31[0].VolumeData.Height)
-// 	}
-
-// 	for _, newScan := range scans {
-// 		// Find similar scan
-// 		scan := FindScanElevationNumber(newScan, volume.Scans)
-// 		if scan == nil {
-// 			// If none add these
-// 			scan = &newScan
-// 			*volume.Scans = append(*volume.Scans, newScan)
-// 		} else {
-// 			scan.Gates = append(scan.Gates, newScan.Gates...)
-// 			if newScan.EOE {
-// 				scan.EOE = newScan.EOE
-// 			}
-// 		}
-// 		if (scan.EOE || scan.EOV) && volume.VCP != 0 {
-// 			fmt.Printf("%s on elevation %d completed\n", scan.ProductType, scan.ElevationNumber)
-// 			AddSite(scan, *volume)
-// 			if scan.EOV {
-// 				fmt.Printf("Removing volume for %s\n", volume.ICAO)
-// 				volume = nil
-// 			}
-// 		}
-// 	}
-// }

@@ -9,7 +9,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-func GetObjectFromBucket(s3Client s3.Client, bucketName string, objectKey string) ([]byte, error) {
+var s3Client *s3.Client
+
+func S3Client() *s3.Client {
+	return s3Client
+}
+
+func S3Init(sdkConfig aws.Config) {
+	s3Client = s3.NewFromConfig(sdkConfig)
+}
+
+func GetObjectFromBucket(bucketName string, objectKey string) ([]byte, error) {
 	result, err := s3Client.GetObject(context.TODO(), &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(objectKey),

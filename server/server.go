@@ -13,10 +13,9 @@ import (
 	"time"
 
 	"github.com/TheRangiCrew/NEXRAD-GO/level2"
-	nexrad "github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
+	"github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/joho/godotenv"
@@ -162,7 +161,7 @@ func StartServer() {
 		return
 	}
 
-	s3Client := s3.NewFromConfig(sdkConfig)
+	S3Init(sdkConfig)
 	sqsClient := sqs.NewFromConfig(sdkConfig)
 
 	for {
@@ -193,7 +192,7 @@ func StartServer() {
 					log.Println(err)
 				}
 				go func() {
-					data, err := GetObjectFromBucket(*s3Client, payload.S3Bucket, payload.Key)
+					data, err := GetObjectFromBucket(payload.S3Bucket, payload.Key)
 					if err != nil {
 						log.Println(err)
 					} else {

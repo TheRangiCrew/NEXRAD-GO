@@ -1,9 +1,20 @@
 package server
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"sort"
+	"strconv"
+	"sync"
+	"time"
 
 	nexrad "github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type Scan struct {
@@ -13,14 +24,14 @@ type Scan struct {
 	ElevationNumber    int     `json:"elevationNumber"`
 	StartAzimuth       float32 `json:"startAngle"`
 	StartAzimuthNumber int
-	AzimuthResolution  float32     `json:"azimuthResolution"`
-	StartRange         float32     `json:"startRange"`
-	GateInterval       float32     `json:"gateInterval"`
-	Lat                float32     `json:"lat"`
-	Lon                float32     `json:"lon"`
-	Gates              [][]float32 `json:"gates"`
-	EOE                bool        // End of elevation
-	EOV                bool        // EOV
+	AzimuthResolution  float32      `json:"azimuthResolution"`
+	StartRange         float32      `json:"startRange"`
+	GateInterval       float32      `json:"gateInterval"`
+	Lat                float32      `json:"lat"`
+	Lon                float32      `json:"lon"`
+	Gates              *[][]float32 `json:"gates"`
+	EOE                bool         // End of elevation
+	EOV                bool         // EOV
 }
 
 type MomentBlocks struct {
@@ -43,6 +54,66 @@ type Elevation struct {
 	Lon               float32
 	Number            int
 	Moments           map[string]*Moment
+}
+
+var lock = &sync.Mutex{}
+
+var queue *[]Scan
+
+func Scans() *[]Scan {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if queue == nil {
+		queue = &[]Scan{}
+	}
+
+	return queue
+}
+
+func RemoveScan(index int, scans *[]Scan) (Scan, error) {
+	if index >= len(*scans) {
+		return Scan{}, errors.New("index out of bounds")
+	}
+
+	removedScan := (*scans)[index]
+
+	*scans = append((*scans)[:index], (*scans)[index+1:]...)
+
+	return removedScan, nil
+}
+
+func PushScan(scan *Scan, t time.Time) {
+
+	jsonData, err := json.Marshal(scan)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	year := strconv.Itoa(t.Year())
+	month := PadZero(strconv.Itoa(int(t.Month())), 2)
+	day := PadZero(strconv.Itoa(t.Day()), 2)
+
+	hour := PadZero(strconv.Itoa(t.Hour()), 2)
+	minute := PadZero(strconv.Itoa(t.Minute()), 2)
+	second := PadZero(strconv.Itoa(t.Second()), 2)
+
+	key := year + "/" + month + "/" + day + "/" + scan.ICAO + "/" + hour + "-" + minute + "-" + second + "-" + scan.ProductType
+
+	// Create an io.Reader from the JSON data
+	reader := bytes.NewReader(jsonData)
+
+	uploader := manager.NewUploader(S3Client())
+	_, err = uploader.Upload(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String("nexrad"),
+		Key:    aws.String(key),
+		Body:   reader,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 }
 
 func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
@@ -133,7 +204,7 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
 				GateInterval:       moment.GateInterval,
 				Lat:                e.Lat,
 				Lon:                e.Lon,
-				Gates:              gates,
+				Gates:              &gates,
 				EOE:                eoe,
 				EOV:                eov,
 			})
@@ -146,35 +217,19 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
 	})
 
 	return scans
-
-	// for _, s := range scans {
-	// 	j, _ := json.Marshal(s)
-
-	// 	path := fmt.Sprintf("%s/%s", s.ICAO, strconv.Itoa(s.ElevationNumber))
-	// 	filename := fmt.Sprintf("/%s.json", s.ProductType)
-
-	// 	_, err := os.Stat(path + filename)
-	// 	if os.IsNotExist(err) {
-	// 		os.MkdirAll(path, os.ModePerm.Perm()) // Create your file
-	// 	}
-
-	// 	err = os.WriteFile(path+filename, j, os.ModePerm.Perm())
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
-
 }
 
-func FindScanElevationNumber(scan Scan, scans *[]Scan) *Scan {
-
-	for _, s := range *scans {
-		if s.ElevationNumber == scan.ElevationNumber && s.ProductType == scan.ProductType {
-			return &s
+/*
+Finds the given scan in the slice of the scans. Returns the index. If the scan cannot be found, index is -1
+*/
+func FindScanIndex(scan Scan, scans *[]Scan) int {
+	for i, s := range *scans {
+		if s.ElevationNumber == scan.ElevationNumber && s.ProductType == scan.ProductType && s.ICAO == scan.ICAO {
+			return i
 		}
 	}
 
-	return nil
+	return -1
 }
 
 func FindScanElevationAngle(scan *Scan, scans []*Scan) *Scan {

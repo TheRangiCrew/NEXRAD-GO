@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TheRangiCrew/NEXRAD-GO/level2"
 	nexrad "github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -97,17 +98,35 @@ func PayloadToChunkData(payload Payload) (*ChunkFileData, error) {
 }
 
 func ParseNewChunk(data io.ReadSeeker, chunkData ChunkFileData) error {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("error loading .env file")
+	}
+	err = SurrealInit()
+	if err != nil {
+		panic(err)
+	}
 
-	fmt.Printf("Parsed new chunk %s %d %s %s\n", chunkData.Site, chunkData.Number, chunkData.ChunkType, chunkData.InitTime)
+	// fmt.Printf("Parsed new chunk %s %d %s %s\n", chunkData.Site, chunkData.Number, chunkData.ChunkType, chunkData.InitTime)
 
 	l2Radar, err := nexrad.ParseNexrad(data)
 	if err != nil {
 		return err
 	}
 
-	scans := NexradToScans(l2Radar)
-
-	AddToVolume(scans, chunkData)
+	if chunkData.ChunkType == "S" {
+		tdwr, _ := level2.IsTDWRArchive(data)
+		if tdwr {
+			return nil
+		}
+		err := NewVolume(l2Radar, chunkData)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+	} else {
+		AddToVolume(l2Radar, chunkData)
+	}
 
 	return nil
 }
@@ -147,11 +166,16 @@ func StartServer() {
 	sqsClient := sqs.NewFromConfig(sdkConfig)
 
 	for {
+
 		if SurrealInit() != nil {
 			log.Printf("Failed to connect to DB: %s\nTrying again in 30 seconds\n\n", err)
 			time.Sleep(30 * time.Second)
-			continue
+		} else {
+			break
 		}
+	}
+
+	for {
 		messagesRaw, err := GetMessages(*sqsClient, 10, 20)
 		if err != nil {
 			log.Fatal(err)

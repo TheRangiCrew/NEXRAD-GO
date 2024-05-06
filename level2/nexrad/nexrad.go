@@ -1,4 +1,4 @@
-package nexrad2
+package nexrad
 
 import (
 	"encoding/binary"
@@ -89,6 +89,9 @@ func ParseNexrad(file io.ReadSeeker) (*Nexrad, error) {
 				m31, err := ParseMessage31(ldmRecord.Data)
 				if err != nil {
 					return nil, err
+				}
+				if radar.ICAO == "" {
+					radar.ICAO = string(m31.Header.ICAO[:])
 				}
 				if radar.ElevationScans[int(m31.Header.ElevationNumber)] == nil {
 					radar.ElevationScans[int(m31.Header.ElevationNumber)] = &ElevationMessages{

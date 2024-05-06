@@ -1,4 +1,4 @@
-package nexrad2
+package nexrad
 
 import (
 	"encoding/binary"

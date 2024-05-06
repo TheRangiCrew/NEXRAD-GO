@@ -1,4 +1,4 @@
-package nexrad2
+package nexrad
 
 import (
 	"encoding/binary"
@@ -36,7 +36,7 @@ type ElevationCut struct {
 type Message5Header struct {
 	MessageSize         uint16
 	PatternType         uint16
-	PatterNumber        uint16
+	PatternNumber       uint16
 	NumberOfCuts        uint16
 	VCPVersion          uint8
 	ClutterMapGroup     uint8

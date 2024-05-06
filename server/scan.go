@@ -19,7 +19,8 @@ type Scan struct {
 	Lat                float32     `json:"lat"`
 	Lon                float32     `json:"lon"`
 	Gates              [][]float32 `json:"gates"`
-	Complete           bool
+	EOE                bool        // End of elevation
+	EOV                bool        // EOV
 }
 
 type MomentBlocks struct {
@@ -44,9 +45,12 @@ type Elevation struct {
 	Moments           map[string]*Moment
 }
 
-func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
+func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
 
 	elevations := map[int]*Elevation{}
+
+	eoe := false
+	eov := false
 
 	for k, e := range l2Radar.ElevationScans {
 		elevations[k] = &Elevation{
@@ -67,8 +71,6 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
 			if elevation.AzimuthResolution == 0 {
 				elevation.AzimuthResolution = float32(scan.Header.AzimuthResolution) / 2.0
 			}
-
-			//fmt.Println(scan.Header.RadialStatus)
 
 			angleSum += scan.Header.ElevationAngle
 			n++
@@ -95,12 +97,20 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
 					})
 				}
 			}
+
+			if scan.Header.RadialStatus == 2 {
+				eoe = true
+			}
+			if scan.Header.RadialStatus == 4 {
+				eoe = true
+				eov = true
+			}
 		}
 
 		elevation.Angle = angleSum / float32(n)
 	}
 
-	scans := []*Scan{}
+	scans := []Scan{}
 
 	for _, e := range elevations {
 		for k, moment := range e.Moments {
@@ -111,7 +121,7 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
 				gates = append(gates, m.Gates)
 			}
 
-			scans = append(scans, &Scan{
+			scans = append(scans, Scan{
 				ICAO:               l2Radar.ICAO,
 				ProductType:        k,
 				ElevationNumber:    e.Number,
@@ -124,6 +134,8 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
 				Lat:                e.Lat,
 				Lon:                e.Lon,
 				Gates:              gates,
+				EOE:                eoe,
+				EOV:                eov,
 			})
 		}
 
@@ -154,14 +166,25 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []*Scan {
 
 }
 
-func FindScanElevationNumber(scan *Scan, scans []*Scan) *Scan {
-	for _, s := range scans {
+func FindScanElevationNumber(scan Scan, scans *[]Scan) *Scan {
+
+	for _, s := range *scans {
 		if s.ElevationNumber == scan.ElevationNumber && s.ProductType == scan.ProductType {
-			return s
+			return &s
 		}
 	}
 
 	return nil
 }
 
-func FindScanElevationAngle(scan *Scan, scans []*Scan) {}
+func FindScanElevationAngle(scan *Scan, scans []*Scan) *Scan {
+	min := scan.ElevationAngle - 0.1
+	max := scan.ElevationAngle + 0.1
+	for _, s := range scans {
+		if s.ElevationAngle >= min && s.ElevationAngle <= max {
+			return s
+		}
+	}
+
+	return nil
+}

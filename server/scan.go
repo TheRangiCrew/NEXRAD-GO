@@ -1,37 +1,30 @@
-package server
+package main
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
 	nexrad "github.com/TheRangiCrew/NEXRAD-GO/level2/nexrad"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type Scan struct {
-	ICAO               string  `json:"icao"`
-	ProductType        string  `json:"productType"`
-	ElevationAngle     float32 `json:"elevationAngle"`
-	ElevationNumber    int     `json:"elevationNumber"`
-	StartAzimuth       float32 `json:"startAngle"`
-	StartAzimuthNumber int
+	ICAO               string       `json:"icao"`
+	ProductType        string       `json:"productType"`
+	ElevationAngle     float32      `json:"elevationAngle"`
+	ElevationNumber    int          `json:"elevationNumber"`
+	StartAzimuth       float32      `json:"startAngle"`
+	StartAzimuthNumber int          `json:"-"`
 	AzimuthResolution  float32      `json:"azimuthResolution"`
 	StartRange         float32      `json:"startRange"`
 	GateInterval       float32      `json:"gateInterval"`
 	Lat                float32      `json:"lat"`
 	Lon                float32      `json:"lon"`
 	Gates              *[][]float32 `json:"gates"`
-	EOE                bool         // End of elevation
-	EOV                bool         // EOV
+	InitTime           time.Time    `json:"init_time"`
+	EOE                bool         `json:"-"` // End of elevation
+	EOV                bool         `json:"-"` // EOV
 }
 
 type MomentBlocks struct {
@@ -81,39 +74,6 @@ func RemoveScan(index int, scans *[]Scan) (Scan, error) {
 	*scans = append((*scans)[:index], (*scans)[index+1:]...)
 
 	return removedScan, nil
-}
-
-func PushScan(scan *Scan, t time.Time) {
-
-	jsonData, err := json.Marshal(scan)
-	if err != nil {
-		fmt.Println("Error:", err)
-		return
-	}
-
-	year := strconv.Itoa(t.Year())
-	month := PadZero(strconv.Itoa(int(t.Month())), 2)
-	day := PadZero(strconv.Itoa(t.Day()), 2)
-
-	hour := PadZero(strconv.Itoa(t.Hour()), 2)
-	minute := PadZero(strconv.Itoa(t.Minute()), 2)
-	second := PadZero(strconv.Itoa(t.Second()), 2)
-
-	key := year + "/" + month + "/" + day + "/" + scan.ICAO + "/" + hour + "-" + minute + "-" + second + "-" + scan.ProductType
-
-	// Create an io.Reader from the JSON data
-	reader := bytes.NewReader(jsonData)
-
-	uploader := manager.NewUploader(S3Client())
-	_, err = uploader.Upload(context.TODO(), &s3.PutObjectInput{
-		Bucket: aws.String("nexrad"),
-		Key:    aws.String(key),
-		Body:   reader,
-	})
-	if err != nil {
-		panic(err)
-	}
-
 }
 
 func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
@@ -189,7 +149,23 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
 			gates := [][]float32{}
 
 			for _, m := range moment.Blocks {
-				gates = append(gates, m.Gates)
+				tempGates := []float32{}
+
+				mask := 0
+				for _, g := range m.Gates {
+					if len(tempGates) > 0 && g == tempGates[len(tempGates)-1] {
+						mask++
+					} else {
+						if mask > 0 {
+							tempGates = append(tempGates, float32(-1000-mask))
+							mask = 0
+						} else {
+							tempGates = append(tempGates, g)
+						}
+					}
+				}
+
+				gates = append(gates, tempGates)
 			}
 
 			scans = append(scans, Scan{
@@ -205,6 +181,7 @@ func NexradToScans(l2Radar *nexrad.Nexrad) []Scan {
 				Lat:                e.Lat,
 				Lon:                e.Lon,
 				Gates:              &gates,
+				InitTime:           time.Now(),
 				EOE:                eoe,
 				EOV:                eov,
 			})

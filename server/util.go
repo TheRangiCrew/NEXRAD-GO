@@ -1,4 +1,4 @@
-package server
+package main
 
 func PadZero(str string, length int) string {
 	for len(str) < length {

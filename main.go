@@ -47,6 +47,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		server.ParseNewChunk(file, *chunkData)
+		server.Init(true)
+		server.HandleFile(file, *chunkData)
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/surrealdb/surrealdb.go"
+	"github.com/surrealdb/surrealdb.go/pkg/conn/gorilla"
+	"github.com/surrealdb/surrealdb.go/pkg/marshal"
 )
 
 var surrealLock = &sync.Mutex{}
@@ -29,7 +31,7 @@ func SurrealInit() error {
 		database := os.Getenv("SURREAL_DATABASE")
 		namespace := os.Getenv("SURREAL_NAMESPACE")
 
-		db, err := surrealdb.New(url)
+		db, err := surrealdb.New(url, gorilla.Create())
 		if err != nil {
 			return err
 		}
@@ -38,11 +40,12 @@ func SurrealInit() error {
 			return err
 		}
 
-		if _, err = db.Signin(map[string]interface{}{
-			"user": username,
-			"pass": password,
-			"NS":   namespace,
-		}); err != nil {
+		authData := &surrealdb.Auth{
+			Username:  username,
+			Password:  password,
+			Namespace: namespace,
+		}
+		if _, err = db.Signin(authData); err != nil {
 			return err
 		}
 
@@ -75,16 +78,14 @@ func GetSite(icao string) (*Site, error) {
 	}
 
 	// NOTE: Surreal returns an array of the result which requires an array to be Unmarshalled. This is referenced later
-	record := new([]surrealdb.RawQuery[[]Site])
-	err = surrealdb.Unmarshal(result, &record)
+	sites := make([]Site, 1)
+	err = marshal.Unmarshal(result, &sites)
 	if err != nil {
 		return nil, err
 	}
 
-	var site *Site
-	if len((*record)[0].Result) != 0 {
-		site = &(*record)[0].Result[0]
-		return site, nil
+	if len(sites) != 0 {
+		return &sites[0], nil
 	} else {
 		return nil, nil
 	}
@@ -102,24 +103,18 @@ func AddSite(icao string) (*Site, error) {
 		Elevation: 0,
 	}
 
-	result, err := surreal.Create("radar_site", site)
+	data, err := surreal.Create("radar_site", site)
 	if err != nil {
 		return nil, err
 	}
 
-	record := new([]surrealdb.RawQuery[[]Site])
-	err = surrealdb.Unmarshal(result, &record)
+	newSite := make([]Site, 1)
+	err = marshal.Unmarshal(data, &newSite)
 	if err != nil {
 		return nil, err
 	}
 
-	var newSite *Site
-	if len((*record)[0].Result) != 0 {
-		newSite = &(*record)[0].Result[0]
-		return newSite, nil
-	}
-
-	return newSite, nil
+	return &newSite[0], nil
 
 }
 
@@ -130,16 +125,14 @@ func GetVolume(id string) (*Volume, error) {
 	}
 
 	// NOTE: Surreal returns an array of the result which requires an array to be Unmarshalled. This is referenced later
-	record := new([]surrealdb.RawQuery[[]Volume])
-	err = surrealdb.Unmarshal(result, &record)
+	volumes := make([]Volume, 1)
+	err = marshal.Unmarshal(result, &volumes)
 	if err != nil {
 		return nil, err
 	}
 
-	var volume *Volume
-	if len((*record)[0].Result) != 0 {
-		volume = &(*record)[0].Result[0]
-		return volume, nil
+	if len(volumes) != 0 {
+		return &volumes[0], nil
 	} else {
 		return nil, nil
 	}
